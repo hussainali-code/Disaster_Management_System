@@ -1,0 +1,224 @@
+
+<style>
+#erd-wrap { padding: 1rem 0; }
+#erd svg { width: 100%; height: auto; }
+</style>
+<div id="erd-wrap"><div id="erd"></div></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '13px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+    primaryColor: dark ? '#2a2a28' : '#f1efe8',
+    primaryBorderColor: dark ? '#5f5e5a' : '#b4b2a9',
+  },
+});
+
+const diagram = `erDiagram
+
+  USERS {
+    int user_id PK
+    varchar username
+    varchar password_hash
+    varchar email
+    enum role
+    boolean is_active
+    timestamp created_at
+  }
+
+  AUDIT_LOG {
+    int log_id PK
+    int user_id FK
+    varchar action
+    varchar table_name
+    int record_id
+    text old_value
+    text new_value
+    timestamp logged_at
+  }
+
+  DISASTER_EVENTS {
+    int event_id PK
+    varchar event_name
+    enum disaster_type
+    varchar location
+    date start_date
+    date end_date
+    enum status
+  }
+
+  EMERGENCY_REPORTS {
+    int report_id PK
+    int event_id FK
+    varchar location
+    enum disaster_type
+    enum severity
+    enum status
+    timestamp reported_at
+    varchar reporter_contact
+  }
+
+  RESCUE_TEAMS {
+    int team_id PK
+    varchar team_name
+    enum team_type
+    varchar current_location
+    enum availability_status
+  }
+
+  TEAM_ASSIGNMENTS {
+    int assignment_id PK
+    int team_id FK
+    int report_id FK
+    int assigned_by FK
+    timestamp assigned_at
+    timestamp completed_at
+    enum status
+  }
+
+  TEAM_ACTIVITY_LOG {
+    int activity_id PK
+    int team_id FK
+    int assignment_id FK
+    enum status_from
+    enum status_to
+    timestamp changed_at
+  }
+
+  WAREHOUSE {
+    int warehouse_id PK
+    varchar name
+    varchar location
+    varchar manager_name
+  }
+
+  RESOURCES {
+    int resource_id PK
+    int warehouse_id FK
+    varchar resource_name
+    enum resource_type
+    int quantity_available
+    int low_stock_threshold
+    varchar unit
+  }
+
+  RESOURCE_ALLOCATIONS {
+    int allocation_id PK
+    int resource_id FK
+    int event_id FK
+    int requested_by FK
+    int approved_by FK
+    int quantity_requested
+    int quantity_dispatched
+    int quantity_consumed
+    enum status
+    timestamp requested_at
+    timestamp approved_at
+  }
+
+  HOSPITALS {
+    int hospital_id PK
+    varchar hospital_name
+    varchar location
+    int total_beds
+    int available_beds
+  }
+
+  PATIENTS {
+    int patient_id PK
+    int hospital_id FK
+    int report_id FK
+    varchar patient_name
+    enum condition_severity
+    boolean is_critical
+    timestamp admitted_at
+    timestamp discharged_at
+  }
+
+  FINANCIAL_TRANSACTIONS {
+    int transaction_id PK
+    int event_id FK
+    int recorded_by FK
+    enum transaction_type
+    decimal amount
+    varchar description
+    varchar source_or_recipient
+    timestamp transaction_date
+  }
+
+  APPROVAL_REQUESTS {
+    int request_id PK
+    int requested_by FK
+    int approved_by FK
+    enum request_type
+    int reference_id
+    enum status
+    text notes
+    timestamp requested_at
+    timestamp decided_at
+  }
+
+  USERS ||--o{ AUDIT_LOG : "generates"
+  USERS ||--o{ TEAM_ASSIGNMENTS : "assigns"
+  USERS ||--o{ RESOURCE_ALLOCATIONS : "requests"
+  USERS ||--o{ RESOURCE_ALLOCATIONS : "approves"
+  USERS ||--o{ FINANCIAL_TRANSACTIONS : "records"
+  USERS ||--o{ APPROVAL_REQUESTS : "submits"
+  USERS ||--o{ APPROVAL_REQUESTS : "decides"
+
+  DISASTER_EVENTS ||--o{ EMERGENCY_REPORTS : "has"
+  DISASTER_EVENTS ||--o{ RESOURCE_ALLOCATIONS : "requires"
+  DISASTER_EVENTS ||--o{ FINANCIAL_TRANSACTIONS : "tracks"
+
+  EMERGENCY_REPORTS ||--o{ TEAM_ASSIGNMENTS : "triggers"
+  EMERGENCY_REPORTS ||--o{ PATIENTS : "links to"
+
+  RESCUE_TEAMS ||--o{ TEAM_ASSIGNMENTS : "receives"
+  RESCUE_TEAMS ||--o{ TEAM_ACTIVITY_LOG : "has"
+
+  TEAM_ASSIGNMENTS ||--o{ TEAM_ACTIVITY_LOG : "logged in"
+
+  WAREHOUSE ||--o{ RESOURCES : "stores"
+  RESOURCES ||--o{ RESOURCE_ALLOCATIONS : "allocated via"
+
+  HOSPITALS ||--o{ PATIENTS : "admits"
+
+  APPROVAL_REQUESTS ||--|| RESOURCE_ALLOCATIONS : "governs"
+`;
+
+const { svg } = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd').innerHTML = svg;
+
+document.querySelectorAll('#erd svg .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+
+document.querySelectorAll('#erd svg .row-rect-odd path, #erd svg .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
